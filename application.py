@@ -45,15 +45,15 @@ def index():
         info["price"]= usd(info["price"])
         total+= info["total"]
         info["total"]= usd(info["total"])
-    
+
     return render_template("index.html", report=report, cash=cash, symbol=symbol, total=usd(total))
-        
-        
+
+
 @app.route("/buy", methods=["GET", "POST"])
 @login_required
 def buy():
     """Buy shares of stock."""
-    
+
     if request.method == "POST":
         name= lookup(request.form.get("symbol"))
         if not name:
@@ -61,18 +61,19 @@ def buy():
         count= int(request.form.get("number"))
         if not count or count <=0:
             return apology("Number does not exist or should be greater than 0")
-        
+
         rows = db.execute("SELECT cash FROM users WHERE id = :id", id=session["user_id"])
         rows = float(rows[0]["cash"])
-        
+
         if rows < (count*name["price"]):
             return apology("You do not have enough money to purchase this stock.")
-    
+
         else:
-            db.execute("UPDATE users SET cash = :cash - 50 WHERE id = :id", cash=rows, id= session["user_id"])
-            db.execute("INSERT INTO records(user_id, name, symbol, number, price) VALUES(:id, :name, :symbol, :number, :price)", 
+            rows=rows - (count*name["price"])
+            db.execute("UPDATE users SET cash = :cash WHERE id = :id", cash=rows, id= session["user_id"])
+            db.execute("INSERT INTO records(user_id, name, symbol, number, price) VALUES(:id, :name, :symbol, :number, :price)",
             id=session["user_id"], name=name["name"], symbol=name["symbol"],number= int(request.form.get("number")), price=name["price"])
-        
+
         return redirect(url_for("index"))
     elif request.method == "GET":
         return render_template("buy.html")
@@ -81,8 +82,8 @@ def buy():
 @login_required
 def history():
     """Show history of transactions."""
-    
-    hist= db.execute("SELECT user_id, name, symbol, number, price FROM records WHERE user_id= :id", id=session["user_id"])
+
+    hist= db.execute("SELECT user_id, name, symbol, number, price, date FROM records WHERE user_id= :id", id=session["user_id"])
     return render_template("history.html", hist= hist)
 
 @app.route("/login", methods=["GET", "POST"])
@@ -134,7 +135,7 @@ def logout():
 @login_required
 def quote():
     """Get stock quote."""
-    
+
     if request.method == "POST":
         name= lookup(request.form.get("symbol"))
         if not name:
@@ -147,7 +148,7 @@ def quote():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     """Register user."""
-    
+
     if request.method == "POST":
         if not request.form.get ("username"):
             return apology("Need username")
@@ -157,19 +158,19 @@ def register():
             return apology("Need password again")
         elif request.form.get ("password") != request.form.get ("validate"):
             return apology("Passwords do not match")
-        
+
         hash = pwd_context.hash(request.form.get("password"))
-        
-        result = db.execute("INSERT INTO users (username, hash) VALUES(:username, :hash)", username=request.form.get("username"), 
+
+        result = db.execute("INSERT INTO users (username, hash) VALUES(:username, :hash)", username=request.form.get("username"),
         hash=hash)
         if not result:
             return apology("Invalid username")
-        
+
         rows = db.execute("SELECT id FROM users WHERE username = :username", username=request.form.get("username"))
         session["user_id"]= rows[0]["id"]
-        
+
         return redirect(url_for("index"))
-        
+
     elif request.method == "GET":
         return render_template("register.html")
 
@@ -184,23 +185,28 @@ def sell():
         count= int(request.form.get("number"))
         if not count or count <=0:
             return apology("Number does not exist or should be greater than 0")
-        
-        present= db.execute("SELECT SUM(number) FROM records WHERE user_id= :id AND name= :name AND symbol= :symbol", 
+
+        present= db.execute("SELECT SUM(number) FROM records WHERE user_id= :id AND name= :name AND symbol= :symbol",
         id=session["user_id"], name=name["name"], symbol=name["symbol"])
         if not present[0]["SUM(number)"]:
             return apology("No instance of stock found")
-        
+
         if present[0]["SUM(number)"]<count:
             return apology("Count exceeds number of stocks owned")
-        
+
         rows = db.execute("SELECT cash FROM users WHERE id = :id", id=session["user_id"])
         rows = float(rows[0]["cash"])
-        
-       
-        db.execute("UPDATE users SET cash = :cash + 50 WHERE id = :id", cash=rows, id= session["user_id"])
-        db.execute("INSERT INTO records(user_id, name, symbol, number, price) VALUES(:id, :name, :symbol, :number, :price)", 
-        id=session["user_id"], name=name["name"], symbol=name["symbol"],number= -(int(request.form.get("number"))), price=name["price"])
-        
+
+
+        if rows < (count*name["price"]):
+            return apology("Stock cannot be sold.")
+
+        else:
+            rows=rows + (count*name["price"])
+            db.execute("UPDATE users SET cash = :cash WHERE id = :id", cash=rows, id= session["user_id"])
+            db.execute("INSERT INTO records(user_id, name, symbol, number, price) VALUES(:id, :name, :symbol, :number, :price)",
+            id=session["user_id"], name=name["name"], symbol=name["symbol"],number= -(int(request.form.get("number"))), price=name["price"])
+
         return redirect(url_for("index"))
     elif request.method == "GET":
         return render_template("sell.html")
