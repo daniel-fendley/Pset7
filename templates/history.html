@@ -15,7 +15,7 @@
                 <th>Transacted</th>
             </tr>
         </thead>
-        
+
         <tbody>
             {% for hist in hist %}
                 <tr>
@@ -23,7 +23,7 @@
                     <td>{{hist["symbol"]}}</td>
                     <td>{{hist["number"]}}</td>
                     <td>{{hist["price"]}}</td>
-                    <td>{{hist[""]}}</td>
+                    <td>{{hist["date"]}}</td>
                 </tr>
             {% endfor %}
         </tbody>
